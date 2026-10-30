@@ -1,0 +1,968 @@
+=====FILE: settings.gradle.kts
+pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+dependencyResolutionManagement { repositories { google(); mavenCentral() } }
+rootProject.name = "SoloLauncher"
+include(":app")
+=====FILE: build.gradle.kts
+plugins {
+    id("com.android.application") version "8.5.2" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+}
+=====FILE: app/build.gradle.kts
+plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
+android {
+    namespace = "com.sovereign.solo"
+    compileSdk = 34
+    defaultConfig { applicationId = "com.sovereign.solo"; minSdk = 26; targetSdk = 34; versionCode = 1; versionName = "1.0" }
+    compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
+    kotlinOptions { jvmTarget = "17" }
+}
+dependencies { implementation("androidx.core:core-ktx:1.13.1") }
+=====FILE: app/src/main/AndroidManifest.xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+    <application android:label="Solo Launcher" android:theme="@style/Theme.Solo" android:allowBackup="true">
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask"
+            android:stateNotNeeded="true" android:excludeFromRecents="true" android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".BlockActivity" android:exported="false" android:launchMode="singleTask" android:excludeFromRecents="true" />
+        <activity android:name=".LockActivity" android:exported="false" android:launchMode="singleTask" android:excludeFromRecents="true" android:windowSoftInputMode="adjustResize" />
+        <service android:name=".GuardService" android:exported="false" android:label="Solo Guard"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/guard_config" />
+        </service>
+        <receiver android:name=".AlarmReceiver" android:exported="false" />
+        <receiver android:name=".RankWidget" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info" />
+        </receiver>
+    </application>
+</manifest>
+=====FILE: app/src/main/res/values/styles.xml
+<resources>
+    <style name="Theme.Solo" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#05080C</item>
+        <item name="android:statusBarColor">#05080C</item>
+        <item name="android:navigationBarColor">#05080C</item>
+    </style>
+</resources>
+=====FILE: app/src/main/res/values/strings.xml
+<resources>
+    <string name="guard_desc">Solo Guard watches which app is in front and blocks entertainment apps during study gates.</string>
+</resources>
+=====FILE: app/src/main/res/xml/guard_config.xml
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="100"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/guard_desc" />
+=====FILE: app/src/main/res/xml/widget_info.xml
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />
+=====FILE: app/src/main/res/layout/widget.xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="#E6030914">
+    <TextView android:id="@+id/w_head" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="[!] STATUS" android:textColor="#00E5FF" android:textSize="11sp" android:textStyle="bold" />
+    <TextView android:id="@+id/w_rank" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="LEVEL 1" android:textColor="#FFFFFF" android:textSize="24sp" android:textStyle="bold" />
+    <TextView android:id="@+id/w_job" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="UNAWAKENED" android:textColor="#A000FF" android:textSize="13sp" android:textStyle="bold" />
+    <TextView android:id="@+id/w_goal" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="" android:textColor="#FACC15" android:textSize="12sp" android:layout_marginTop="6dp" />
+</LinearLayout>
+=====FILE: app/src/main/java/com/sovereign/solo/Store.kt
+package com.sovereign.solo
+
+import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.util.Base64
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.Calendar
+
+/** The System. Cold, exact, no mercy. Every rule lives here and never depends on willpower. */
+object Store {
+    val ENT = setOf(
+        "com.google.android.youtube", "com.zhiliaoapp.musically", "com.instagram.android",
+        "com.netflix.mediaclient", "com.facebook.katana", "com.twitter.android",
+        "com.snapchat.android", "com.crunchyroll.crunchyroid", "com.reddit.frontpage",
+        "com.dts.freefireth", "com.tencent.ig"
+    )
+    // Study tools: never blocked unless you mark them yourself.
+    val ALLOW = setOf(
+        "com.android.chrome", "com.chrome.beta", "org.mozilla.firefox", "com.google.android.dialer", "com.android.dialer",
+        "com.google.android.calculator", "com.android.calculator2", "com.samsung.android.calculator",
+        "com.google.android.keep", "com.google.android.apps.docs", "com.google.android.documentsui", "com.android.documentsui",
+        "com.google.android.apps.messaging", "com.android.mms"
+    )
+    // Settings and installers are locked during a gate or penalty so the guard cannot be switched off in the moment.
+    val STRICT = setOf("com.android.settings", "com.google.android.packageinstaller", "com.android.packageinstaller")
+    val SUBJECTS = listOf("Mathematics", "Physics", "Chemistry", "Computer Science", "English", "Kiswahili",
+        "Community Service Learning", "Workout", "Reading and writing")
+    private val LONGS = setOf("gateEnd", "passEnd", "lockEnd", "signed", "examAt")
+    const val PASS_MIN = 25
+    const val TOKEN_COST = 500
+    const val STAR_MIN = 60
+    const val MIN_LEVEL_FOR_TOKEN = 3
+    const val LABOR_WORDS = 500
+
+    private fun p(c: Context) = c.getSharedPreferences("solo3", Context.MODE_PRIVATE)
+    private fun n(c: Context, k: String) = p(c).getInt(k, 0)
+    private fun l(c: Context, k: String) = p(c).getLong(k, 0L)
+    private fun add(c: Context, k: String, v: Int) { p(c).edit().putInt(k, n(c, k) + v).apply() }
+    fun now() = System.currentTimeMillis()
+
+    // Identity and targets
+    fun name(c: Context) = p(c).getString("name", "") ?: ""
+    fun sign(c: Context, nm: String) { p(c).edit().putString("name", nm).putLong("signed", now()).apply() }
+    fun curfew(c: Context) = p(c).getInt("cf", 22)
+    fun gateMin(c: Context) = p(c).getInt("gm", 90)
+    fun setCurfew(c: Context, v: Int) { p(c).edit().putInt("cf", v.coerceIn(18, 24)).apply() }
+    fun setGateMin(c: Context, v: Int) { p(c).edit().putInt("gm", v.coerceIn(20, 180)).apply() }
+    fun examName(c: Context) = p(c).getString("examName", "") ?: ""
+    fun setExam(c: Context, name: String, days: Int) { p(c).edit().putString("examName", name).putLong("examAt", now() + days * 86400000L).apply() }
+    fun examDays(c: Context): Int { val e = l(c, "examAt"); return if (e == 0L) -1 else Math.ceil((e - now()) / 86400000.0).toInt() }
+    fun goalLine(c: Context): String {
+        val d = examDays(c)
+        val lock = "LOCK-IN ${minOf(streak(c), 7)}/7"
+        return if (d < 0) lock else lock + " · " + (if (d == 0) "EXAM TODAY" else "EXAM IN $d DAYS") + (if (examName(c).isNotEmpty()) " (${examName(c)})" else "")
+    }
+
+    // State
+    fun xp(c: Context) = n(c, "xp")
+    fun gold(c: Context) = n(c, "gold")
+    fun fatigue(c: Context) = n(c, "fatigue")
+    fun stars(c: Context) = n(c, "stars")
+    fun tokens(c: Context) = n(c, "tokens")
+    fun streak(c: Context) = n(c, "streak")
+    fun gateEnd(c: Context) = l(c, "gateEnd")
+    fun passEnd(c: Context) = l(c, "passEnd")
+    fun lockEnd(c: Context) = l(c, "lockEnd")
+    fun gateOn(c: Context) = now() < gateEnd(c)
+    fun gateReady(c: Context) = !gateOn(c) && gateEnd(c) > 0
+    fun passOn(c: Context) = now() < passEnd(c)
+    fun gateSubject(c: Context) = p(c).getString("gSubj", "") ?: ""
+    fun gateMinutes(c: Context) = n(c, "gMin")
+    fun gateIsDrill(c: Context) = p(c).getBoolean("gDrill", false)
+    fun drill(c: Context) = p(c).getString("drill", "") ?: ""
+    fun labor(c: Context) = p(c).getBoolean("labor", false)
+    fun clearLabor(c: Context) { p(c).edit().putBoolean("labor", false).apply() }
+
+    // Attributes
+    fun str(c: Context) = 10 + n(c, "str")
+    fun intStat(c: Context) = 10 + n(c, "int")
+    fun agi(c: Context) = 10 + n(c, "agi")
+    fun per(c: Context) = 10 + n(c, "foc")
+    fun vit(c: Context) = maxOf(0, 100 - fatigue(c))
+
+    fun level(xp: Int): Int { var x = xp; var l = 1; while (x >= 100 + 25 * (l - 1)) { x -= 100 + 25 * (l - 1); l++ }; return l }
+    fun levelXp(xp: Int): Pair<Int, Int> { var x = xp; var l = 1; while (x >= 100 + 25 * (l - 1)) { x -= 100 + 25 * (l - 1); l++ }; return Pair(x, 100 + 25 * (l - 1)) }
+    fun rank(l: Int) = when { l >= 30 -> "S"; l >= 20 -> "A"; l >= 15 -> "B"; l >= 10 -> "C"; l >= 5 -> "D"; else -> "E" }
+    fun title(c: Context) = when (rank(level(xp(c)))) { "E" -> "UNAWAKENED"; "D" -> "AWAKENED"; "C" -> "KNIGHT"; "B" -> "STRATEGIST"; "A" -> "ELITE"; else -> "SHADOW MONARCH" }
+    fun job(c: Context): String {
+        val m = mapOf("WARRIOR" to str(c), "SCHOLAR" to intStat(c), "EXECUTOR" to agi(c), "SENTINEL" to per(c))
+        return m.maxByOrNull { it.value }?.key ?: "WARRIOR"
+    }
+    fun words(s: String) = s.trim().split(Regex("\s+")).filter { it.isNotEmpty() }.size
+
+    // Time and phase
+    fun isSleep(c: Context): Boolean { val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY); return h >= curfew(c) || h < 5 }
+    fun phase(c: Context) = when { isSleep(c) -> "SLEEP MODE"; gateOn(c) -> "DUNGEON MODE"; labor(c) -> "DIGITAL LABOR"; passOn(c) -> "PASS ACTIVE"; else -> "ENTERTAINMENT LOCKED" }
+    private fun day(off: Int = 0): String { val cal = Calendar.getInstance(); cal.add(Calendar.DAY_OF_YEAR, -off); return "%04d%02d%02d".format(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH)) }
+    private fun touch(c: Context) {
+        val t = day(); val last = p(c).getString("lastDay", "") ?: ""
+        if (last == t) return
+        val s = if (last == day(1)) n(c, "streak") + 1 else 1
+        val e = p(c).edit().putString("lastDay", t).putInt("streak", s)
+        if (s % 7 == 0) e.putInt("stars", n(c, "stars") + 1)
+        e.apply()
+    }
+    private fun gain(c: Context, subject: String, pts: Int) {
+        add(c, when (subject) { "Workout" -> "str"; "Reading and writing" -> "foc"; else -> "int" }, pts)
+    }
+
+    // Hazards
+    private fun ss(c: Context, k: String): MutableSet<String> = (p(c).getStringSet(k, emptySet()) ?: emptySet()).toMutableSet()
+    fun isHazard(c: Context, pkg: String): Boolean {
+        if (pkg == c.packageName) return false
+        if (pkg in ss(c, "hzOff")) return false
+        if (pkg in ss(c, "hzOn")) return true
+        if (pkg in ALLOW) return false
+        if (pkg in ENT) return true
+        return try {
+            val cat = c.packageManager.getApplicationInfo(pkg, 0).category
+            cat == ApplicationInfo.CATEGORY_GAME || cat == ApplicationInfo.CATEGORY_VIDEO || cat == ApplicationInfo.CATEGORY_SOCIAL
+        } catch (e: Exception) { false }
+    }
+    fun toggleHazard(c: Context, pkg: String) {
+        val on = ss(c, "hzOn"); val off = ss(c, "hzOff")
+        if (isHazard(c, pkg)) { on.remove(pkg); off.add(pkg) } else { off.remove(pkg); on.add(pkg) }
+        p(c).edit().putStringSet("hzOn", on).putStringSet("hzOff", off).apply()
+    }
+    fun blocked(c: Context, pkg: String): Boolean {
+        if (pkg == c.packageName || pkg == "com.android.systemui") return false
+        if (pkg in STRICT) return gateOn(c) || labor(c)
+        if (!isHazard(c, pkg)) return false
+        return isSleep(c) || gateOn(c) || labor(c) || now() < lockEnd(c) || !passOn(c)
+    }
+
+    // Gates
+    fun enterGate(c: Context, subject: String, mins: Int, drill: Boolean) {
+        p(c).edit().putLong("gateEnd", now() + mins * 60000L).putString("gSubj", subject).putInt("gMin", mins).putBoolean("gDrill", drill).apply()
+    }
+    private fun checkDay(c: Context): String {
+        val t = day()
+        if ((p(c).getString("okDay", "") ?: "") == t) return ""
+        val gates = if ((p(c).getString("gDay", "") ?: "") == t) n(c, "gCnt") else 0
+        if (gates >= 1 && quests(c).all { questDone(c, it) }) {
+            p(c).edit().putString("okDay", t).putInt("tokens", tokens(c) + 1).apply()
+            return " DAILY REQUIREMENTS MET: +1 TOKEN."
+        }
+        return ""
+    }
+    fun completeGate(c: Context, evidence: String): String {
+        if (!gateReady(c)) return "GATE STILL RUNNING."
+        if (words(evidence) < 3) return "EVIDENCE REQUIRED: 3 OR MORE WORDS. NO EVIDENCE, NO REWARD."
+        val m = gateMinutes(c); val xpG = maxOf(10, m / 2); val goldG = m * 4
+        touch(c)
+        val t = day(); val cnt = if ((p(c).getString("gDay", "") ?: "") == t) n(c, "gCnt") + 1 else 1
+        val oldL = level(xp(c))
+        val e = p(c).edit().putInt("xp", xp(c) + xpG).putInt("gold", gold(c) + goldG).putInt("tokens", tokens(c) + 1)
+            .putLong("gateEnd", 0).putBoolean("gDrill", false).putString("gDay", t).putInt("gCnt", cnt)
+        if (gateIsDrill(c)) e.putString("drill", "")
+        e.apply(); gain(c, gateSubject(c), maxOf(1, m / 30)); add(c, "foc", 2); add(c, "str", 1)
+        val newL = level(xp(c))
+        val lvlUp = if (newL > oldL) " [LEVEL UP! LV.$newL (${rank(newL)}-RANK)]" else ""
+        return "GATE CLEARED: +$xpG XP, +$goldG GOLD, +1 TOKEN.$lvlUp" + checkDay(c)
+    }
+    fun abandonGate(c: Context): String {
+        val f = fatigue(c) + 25
+        val subj = gateSubject(c).ifEmpty { "Mathematics" }
+        val e = p(c).edit().putLong("gateEnd", 0).putBoolean("labor", true).putString("drill", subj)
+        if (f >= 100) e.putInt("fatigue", 0).putLong("lockEnd", now() + 24 * 3600000L) else e.putInt("fatigue", f)
+        e.apply()
+        return "GATE ABANDONED. FATIGUE +25. DIGITAL LABOR ACTIVE. 90-MINUTE DRILL OWED: $subj."
+    }
+
+    // Entertainment tokens
+    fun useToken(c: Context): String {
+        if (isSleep(c)) return "SLEEP MODE. ENTERTAINMENT DENIED."
+        if (gateOn(c)) return "GATE ACTIVE. ENTERTAINMENT DENIED."
+        if (labor(c)) return "DIGITAL LABOR ACTIVE. COMPLETE IT FIRST."
+        if (now() < lockEnd(c)) return "FATIGUE LOCKOUT ACTIVE."
+        if (tokens(c) < 1) return "NO TOKENS. CLEAR A GATE OR ALL DAILY QUESTS."
+        p(c).edit().putInt("tokens", tokens(c) - 1).putLong("passEnd", now() + PASS_MIN * 60000L).apply()
+        return "TOKEN SPENT. $PASS_MIN MINUTES. THE CLOCK DOES NOT STOP."
+    }
+    fun buyToken(c: Context): String {
+        if (level(xp(c)) < MIN_LEVEL_FOR_TOKEN) return "RANK TOO LOW. REACH LEVEL $MIN_LEVEL_FOR_TOKEN."
+        if (gold(c) < TOKEN_COST) return "INSUFFICIENT GOLD."
+        p(c).edit().putInt("gold", gold(c) - TOKEN_COST).putInt("tokens", tokens(c) + 1).apply()
+        return "TOKEN PURCHASED."
+    }
+    fun redeemStar(c: Context): String {
+        if (isSleep(c)) return "SLEEP MODE. ENTERTAINMENT DENIED."
+        if (gateOn(c) || labor(c)) return "DENIED WHILE A GATE OR PENALTY IS ACTIVE."
+        if (stars(c) < 1) return "NO STAR TOKENS. SEVEN ACTIVE DAYS IN A ROW EARNS ONE."
+        p(c).edit().putInt("stars", stars(c) - 1).putLong("passEnd", now() + STAR_MIN * 60000L).apply()
+        return "STAR TOKEN SPENT. $STAR_MIN MINUTES."
+    }
+
+    // Quests
+    fun quests(c: Context): List<String> {
+        val s = p(c).getString("quests", "") ?: ""
+        return if (s.isBlank()) listOf("Complete assigned homework", "Revise today's lessons", "Solve past-paper questions") else s.split("
+").filter { it.isNotBlank() }
+    }
+    fun addQuest(c: Context, t: String) { p(c).edit().putString("quests", (quests(c) + t.trim()).joinToString("
+")).apply() }
+    fun removeQuest(c: Context, t: String) { p(c).edit().putString("quests", quests(c).filter { it != t }.joinToString("
+")).apply() }
+    fun importLines(c: Context, text: String): Int {
+        val have = quests(c).map { it.lowercase() }.toMutableSet(); var added = 0
+        val strip = Regex("^\\s*(?:[-*•]\\s*)?(?:\\d{1,2}[:.]\\d{2}\\s*(?:am|pm)?\\s*(?:[-–—]|to)?\\s*(?:\\d{1,2}[:.]\\d{2}\\s*(?:am|pm)?)?\\s*[:\\-–—]?\\s*)?", RegexOption.IGNORE_CASE)
+        for (raw in text.lines()) {
+            val t = raw.replace(Regex("[*#|`]"), " ").replace(strip, "").trim()
+            if (t.length < 4 || t.lowercase() in have || added >= 12) continue
+            addQuest(c, t); have.add(t.lowercase()); added++
+        }
+        return added
+    }
+    fun suggestXp(t: String): Int {
+        val s = t.lowercase()
+        return when {
+            listOf("math", "physic", "chem", "code", "comput", "program").any { it in s } -> 30
+            listOf("english", "kiswahili", "swahili", "essay", "csl", "community").any { it in s } -> 25
+            listOf("workout", "exercise", "gym", "run").any { it in s } -> 15
+            "read" in s -> 10
+            else -> 15
+        }
+    }
+    fun questDone(c: Context, t: String) = p(c).getString("q" + t.hashCode(), "") == day()
+    fun doQuest(c: Context, t: String, evidence: String): String {
+        if (questDone(c, t)) return "ALREADY CLEARED TODAY."
+        if (words(evidence) < 3) return "EVIDENCE REQUIRED: 3 OR MORE WORDS. NO EVIDENCE, NO REWARD."
+        val x = suggestXp(t); val s = t.lowercase()
+        touch(c)
+        val oldL = level(xp(c))
+        p(c).edit().putString("q" + t.hashCode(), day()).putInt("xp", xp(c) + x).putInt("gold", gold(c) + x * 3).apply()
+        gain(c, if ("workout" in s || "exercise" in s) "Workout" else if ("read" in s) "Reading and writing" else "Mathematics", 1)
+        add(c, "agi", 1)
+        val newL = level(xp(c))
+        val lvlUp = if (newL > oldL) " [LEVEL UP! LV.$newL (${rank(newL)}-RANK)]" else ""
+        return "QUEST CLEARED: +$x XP, +${x * 3} GOLD.$lvlUp" + checkDay(c)
+    }
+
+    fun settle(c: Context): String? {
+        val t = day(); val s = p(c).getString("settled", "") ?: ""
+        if (s == t) return null
+        p(c).edit().putString("settled", t).apply()
+        if (s.isEmpty() || (p(c).getString("okDay", "") ?: "") == s) return null
+        val subj = drill(c).ifEmpty { "Mathematics" }
+        p(c).edit().putBoolean("labor", true).putString("drill", subj).putInt("fatigue", minOf(99, fatigue(c) + 15)).putInt("streak", 0).apply()
+        return "YESTERDAY'S REQUIREMENTS WERE NOT MET. PENALTY QUEST ISSUED: FATIGUE +15, STREAK RESET, DIGITAL LABOR ACTIVE, 90-MINUTE DRILL OWED ON $subj."
+    }
+
+    // One person, one data sync
+    fun exportAll(c: Context): String {
+        val j = JSONObject()
+        for ((k, v) in p(c).all) { if (v is Set<*>) j.put(k, JSONArray(v.toList())) else j.put(k, v) }
+        return Base64.encodeToString(j.toString().toByteArray(), Base64.NO_WRAP)
+    }
+    fun importAll(c: Context, code: String): Boolean {
+        return try {
+            val str = String(Base64.decode(code.trim(), Base64.NO_WRAP))
+            val j = JSONObject(str)
+            val e = p(c).edit().clear()
+            val keys = j.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                if (k in LONGS) e.putLong(k, j.getLong(k))
+                else when (val v = j.get(k)) {
+                    is Int -> e.putInt(k, v)
+                    is Long -> e.putLong(k, v)
+                    is Boolean -> e.putBoolean(k, v)
+                    is String -> e.putString(k, v)
+                    is JSONArray -> {
+                        val set = mutableSetOf<String>()
+                        for (i in 0 until v.length()) set.add(v.getString(i))
+                        e.putStringSet(k, set)
+                    }
+                }
+            }
+            e.apply(); true
+        } catch (ex: Exception) { false }
+    }
+}
+
+=====FILE: app/src/main/java/com/sovereign/solo/Luna.kt
+package com.sovereign.solo
+
+import android.content.Context
+import android.content.Intent
+
+/** Luna: cold, precise assistant that parses voice and text inputs. */
+object Luna {
+    var openPkg: String? = null
+
+    private fun subjectOf(t: String): String? = when {
+        "math" in t -> "Mathematics"; "phys" in t -> "Physics"; "chem" in t -> "Chemistry"
+        "comput" in t || "cod" in t -> "Computer Science"; "english" in t -> "English"
+        "swahili" in t -> "Kiswahili"; "community" in t || "csl" in t -> "Community Service Learning"
+        "workout" in t || "exercise" in t -> "Workout"; "read" in t || "writ" in t -> "Reading and writing"
+        else -> null
+    }
+
+    fun next(c: Context): String {
+        if (Store.labor(c)) return "DIGITAL LABOR ACTIVE. COMPLETE 500-WORD DRILL."
+        if (Store.isSleep(c)) return "SLEEP MODE. REST REQUIRED FOR OPTIMAL PROGRESSION."
+        if (Store.gateOn(c)) return "GATE RUNNING ON ${Store.gateSubject(c)}. MAINTAIN FOCUS."
+        if (Store.gateReady(c)) return "GATE CLEARED. SUBMIT EVIDENCE TO CLAIM."
+        if (Store.drill(c).isNotEmpty()) return "DRILL OWED ON ${Store.drill(c)}. SAY START GATE."
+        val todo = Store.quests(c).firstOrNull { !Store.questDone(c, it) }
+        return if (todo != null) "NEXT QUEST: $todo. SAY START GATE TO BEGIN." else "ALL QUESTS CLEARED. REST OR BUY ENTERTAINMENT TOKEN."
+    }
+
+    fun status(c: Context): String {
+        val lv = Store.level(Store.xp(c))
+        return "LEVEL $lv, RANK ${Store.rank(lv)}. XP ${Store.xp(c)}, GOLD ${Store.gold(c)}, TOKENS ${Store.tokens(c)}. STREAK ${Store.streak(c)} DAYS. ${Store.phase(c)}."
+    }
+
+    fun ask(c: Context, raw: String): String {
+        openPkg = null
+        val t = raw.lowercase().trim()
+        if (t.isEmpty()) return "SYSTEM LISTENING..."
+        if (Regex("abandon|quit the gate|give up").containsMatchIn(t))
+            return if (Store.gateOn(c)) Store.abandonGate(c) else "NO ACTIVE GATE."
+        if (Regex("^(claim|finish|complete) .*(gate|session)").containsMatchIn(t)) {
+            val ev = Regex("(?:evidence|proof|because)\\s+(.+)$").find(t)?.groupValues?.get(1) ?: ""
+            return if (Store.gateReady(c)) Store.completeGate(c, ev) else "NO CLEARED GATE WAITING."
+        }
+        if (Regex("^(start|begin|enter|launch)").containsMatchIn(t)) {
+            if (Store.labor(c)) return "CLEAR DIGITAL LABOR LOCK FIRST."
+            if (Store.isSleep(c)) return "SLEEP MODE ACTIVE."
+            if (Store.gateOn(c)) return "GATE ALREADY RUNNING."
+            val d = Store.drill(c)
+            val s = subjectOf(t) ?: (if (d.isNotEmpty()) d else null) ?: return "SPECIFY SUBJECT: MATHEMATICS, PHYSICS, CHEMISTRY, COMPUTER SCIENCE, ENGLISH, KISWAHILI, CSL, WORKOUT."
+            val isDrill = d.isNotEmpty() && s == d
+            val m = if (isDrill) 90 else (Regex("(\\d{2,3})").find(t)?.value?.toInt() ?: Store.gateMin(c)).coerceIn(20, 180)
+            Store.enterGate(c, s, m, isDrill)
+            return "DUNGEON GATE OPENED: $s FOR $m MIN. HAZARDS LOCKED."
+        }
+        if (Regex("buy .*token|entertainment token|buy pass").containsMatchIn(t)) return Store.buyToken(c)
+        if (Regex("use .*token|spend token|start pass").containsMatchIn(t)) return Store.useToken(c)
+        if (Regex("\\bstars?\\|voucher").containsMatchIn(t)) return Store.redeemStar(c)
+        Regex("^add (?:a )?quest:?\\\s+(.+)$").find(t)?.let { Store.addQuest(c, it.groupValues[1]); return "QUEST ADDED. SUGGESTED XP: ${Store.suggestXp(it.groupValues[1])}." }
+        Regex("^(?:tick|done|complete|finish)\\s+(.+?)\\s+(?:evidence|proof|because)\\s+(.+)$").find(t)?.let { m ->
+            val key = m.groupValues[1]
+            val q = Store.quests(c).firstOrNull { it.lowercase().contains(key) } ?: return "QUEST NOT FOUND MATCHING $key."
+            return Store.doQuest(c, q, m.groupValues[2])
+        }
+        if (Regex("^(tick|done|complete)").containsMatchIn(t)) return "TO TICK A QUEST: tick homework evidence solved 10 problems."
+        Regex("^open\\s+(.+)$").find(t)?.let { m ->
+            val want = m.groupValues[1]
+            val apps = c.packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+            val hit = apps.firstOrNull { it.loadLabel(c.packageManager).toString().lowercase().contains(want) } ?: return "APPLICATION NOT FOUND: $want."
+            openPkg = hit.activityInfo.packageName
+            return "LAUNCHING ${hit.loadLabel(c.packageManager)}."
+        }
+        if (Regex("status|progress|rank").containsMatchIn(t)) return status(c)
+        if (Regex("next|what now").containsMatchIn(t)) return next(c)
+        return "COMMAND UNRECOGNIZED. SAY HELP FOR COMMAND LIST."
+    }
+}
+
+=====FILE: app/src/main/java/com/sovereign/solo/MainActivity.kt
+package com.sovereign.solo
+
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.net.Uri
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
+import android.speech.RecognizerIntent
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.Gravity
+import android.view.View
+import android.widget.*
+import java.util.Locale
+
+class MainActivity : Activity() {
+    private val ui = Handler(Looper.getMainLooper())
+    private var activeTab = 0 // 0: STATUS, 1: QUESTS, 2: GATES, 3: INVENTORY, 4: LUNA
+    private var mainContainer: LinearLayout? = null
+
+    private val timerRunnable = object : Runnable {
+        override fun run() {
+            renderHeader()
+            ui.postDelayed(this, 1000)
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        Store.settle(this)
+        handleIntentShare(intent)
+        buildSystemHUD()
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntentShare(intent)
+    }
+
+    private fun handleIntentShare(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
+            val added = Store.importLines(this, text)
+            Toast.makeText(this, "[SYSTEM] IMPORTED $added QUESTS FROM SHARE.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        buildSystemHUD()
+        ui.post(timerRunnable)
+        RankWidget.update(this)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        ui.removeCallbacks(timerRunnable)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        // Core Launcher Intercept
+    }
+
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    private fun makeBoxDrawable(borderColor: String = "#00E5FF", bgColor: String = "#E6030914"): GradientDrawable {
+        return GradientDrawable().apply {
+            setColor(Color.parseColor(bgColor))
+            setStroke(dp(1), Color.parseColor(borderColor))
+            cornerRadius = dp(4).toFloat()
+        }
+    }
+
+    private fun tv(t: String, size: Float, color: Int = Color.parseColor("#00E5FF"), bold: Boolean = true) = TextView(this).apply {
+        text = t
+        textSize = size
+        setTextColor(color)
+        typeface = Typeface.create(Typeface.MONOSPACE, if (bold) Typeface.BOLD else Typeface.NORMAL)
+    }
+
+    private fun hudButton(text: String, active: Boolean = true, onClick: () -> Unit) = Button(this).apply {
+        this.text = text
+        isEnabled = active
+        setTextColor(if (active) Color.WHITE else Color.GRAY)
+        typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+        background = makeBoxDrawable(if (active) "#00E5FF" else "#334155", if (active) "#101D36" else "#0F172A")
+        setOnClickListener { onClick() }
+    }
+
+    private fun buildSystemHUD() {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.parseColor("#EE030914"))
+            setPadding(dp(12), dp(24), dp(12), dp(12))
+        }
+
+        renderHeaderPanel(root)
+        renderFavoriteDock(root)
+        renderNavTabs(root)
+
+        mainContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+            background = makeBoxDrawable("#00E5FF", "#10080D1A")
+        }
+
+        when (activeTab) {
+            0 -> renderStatusTab(mainContainer!!)
+            1 -> renderQuestsTab(mainContainer!!)
+            2 -> renderGatesTab(mainContainer!!)
+            3 -> renderInventoryTab(mainContainer!!)
+            4 -> renderLunaTab(mainContainer!!)
+        }
+
+        val scroll = ScrollView(this).apply {
+            addView(mainContainer)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        }
+        root.addView(scroll)
+        setContentView(root)
+    }
+
+    private var headerLevelTv: TextView? = null
+    private var headerJobTv: TextView? = null
+    private var headerSubTv: TextView? = null
+
+    private fun renderHeaderPanel(root: LinearLayout) {
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = makeBoxDrawable("#00E5FF", "#0A0F1D")
+        }
+
+        val topRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        topRow.addView(tv("[!] STATUS / SYSTEM HUD", 12f, Color.parseColor("#00E5FF")), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        
+        val aiBtn = hudButton("🎙 LUNA", true) { launchVoice() }.apply {
+            layoutParams = LinearLayout.LayoutParams(dp(70), dp(30))
+            textSize = 9f
+        }
+        topRow.addView(aiBtn)
+        header.addView(topRow)
+
+        val xp = Store.xp(this)
+        val lv = Store.level(xp)
+        val (cur, need) = Store.levelXp(xp)
+        val nameStr = Store.name(this).ifEmpty { "LEON" }
+
+        headerLevelTv = tv("PLAYER: $nameStr  |  LV. $lv  [ ${Store.rank(lv)}-RANK ]", 15f, Color.WHITE)
+        headerJobTv = tv("JOB: ${Store.job(this)}  |  TITLE: ${Store.title(this)}", 11f, Color.parseColor("#A000FF"))
+        headerSubTv = tv("XP: $cur/$need | GOLD: ${Store.gold(this)} | TOKENS: ${Store.tokens(this)} | ${Store.goalLine(this)}", 10f, Color.parseColor("#94A3B8"))
+
+        header.addView(headerLevelTv)
+        header.addView(headerJobTv)
+        header.addView(ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = need; progress = cur
+            setPadding(0, dp(4), 0, dp(4))
+        })
+        header.addView(headerSubTv)
+        root.addView(header)
+    }
+
+    private fun renderHeader() {
+        val xp = Store.xp(this)
+        val lv = Store.level(xp)
+        val (cur, need) = Store.levelXp(xp)
+        val nameStr = Store.name(this).ifEmpty { "LEON" }
+        headerLevelTv?.text = "PLAYER: $nameStr  |  LV. $lv  [ ${Store.rank(lv)}-RANK ]"
+        headerJobTv?.text = "JOB: ${Store.job(this)}  |  TITLE: ${Store.title(this)}"
+        headerSubTv?.text = "XP: $cur/$need | GOLD: ${Store.gold(this)} | TOKENS: ${Store.tokens(this)} | ${Store.goalLine(this)}"
+    }
+
+    private fun renderFavoriteDock(root: LinearLayout) {
+        val dock = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(4), 0, dp(4))
+        }
+        val favs = listOf(
+            Triple("PHONE", Intent(Intent.ACTION_DIAL), null),
+            Triple("CHROME", Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")), "com.android.chrome"),
+            Triple("SETTINGS", Intent(Settings.ACTION_SETTINGS), null),
+            Triple("ALARM", Intent(android.provider.AlarmClock.ACTION_SET_ALARM), null)
+        )
+        favs.forEach { (name, intent, pkg) ->
+            val btn = TextView(this).apply {
+                text = name; textSize = 9f
+                setTextColor(Color.parseColor("#00E5FF"))
+                gravity = Gravity.CENTER
+                typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                background = makeBoxDrawable("#00E5FF", "#100F172A")
+                setPadding(dp(4), dp(6), dp(4), dp(6))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(dp(2), 0, dp(2), 0) }
+                setOnClickListener {
+                    if (pkg != null && Store.blocked(this@MainActivity, pkg)) {
+                        startActivity(Intent(this@MainActivity, BlockActivity::class.java).putExtra("pkg", name))
+                    } else {
+                        try { startActivity(intent) } catch (e: Exception) { Toast.makeText(this@MainActivity, "[SYSTEM] ACTION UNUSED.", Toast.LENGTH_SHORT).show() }
+                    }
+                }
+            }
+            dock.addView(btn)
+        }
+        root.addView(dock)
+    }
+
+    private fun renderNavTabs(root: LinearLayout) {
+        val nav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(6), 0, dp(6))
+        }
+        val tabs = listOf("STATUS", "QUESTS", "GATES", "APPS", "LUNA")
+        tabs.forEachIndexed { idx, label ->
+            val tabBtn = Button(this).apply {
+                text = label
+                textSize = 9f
+                typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+                setTextColor(if (activeTab == idx) Color.BLACK else Color.parseColor("#00E5FF"))
+                background = makeBoxDrawable(if (activeTab == idx) "#00E5FF" else "#1E293B", if (activeTab == idx) "#00E5FF" else "#0F172A")
+                layoutParams = LinearLayout.LayoutParams(0, dp(32), 1f).apply { setMargins(dp(1), 0, dp(1), 0) }
+                setOnClickListener { activeTab = idx; buildSystemHUD() }
+            }
+            nav.addView(tabBtn)
+        }
+        root.addView(nav)
+    }
+
+    private fun renderStatusTab(panel: LinearLayout) {
+        panel.addView(tv("STATUS MATRIX", 13f, Color.WHITE))
+        panel.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)).apply { setMargins(0, dp(4), 0, dp(8)) }; setBackgroundColor(Color.parseColor("#334155")) })
+
+        panel.addView(tv("STR (DISCIPLINE) : ${Store.str(this)}", 12f, Color.parseColor("#00E5FF")))
+        panel.addView(tv("INT (KNOWLEDGE)  : ${Store.intStat(this)}", 12f, Color.parseColor("#00E5FF")))
+        panel.addView(tv("AGI (EXECUTION)  : ${Store.agi(this)}", 12f, Color.parseColor("#00E5FF")))
+        panel.addView(tv("PER (PERCEPTION) : ${Store.per(this)}", 12f, Color.parseColor("#00E5FF")))
+        panel.addView(tv("VIT (ENERGY)     : ${Store.vit(this)}%", 12f, Color.parseColor("#00E5FF")))
+
+        panel.addView(Space(this, null).apply { minimumHeight = dp(10) })
+        panel.addView(tv("[!] ONE PERSON, ONE DATA SYNC", 11f, Color.parseColor("#A000FF")))
+        
+        val syncRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        syncRow.addView(hudButton("EXPORT CODE") {
+            val code = Store.exportAll(this)
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("solo_sync", code))
+            Toast.makeText(this, "[SYSTEM] DATA COPIED TO CLIPBOARD.", Toast.LENGTH_LONG).show()
+        }.apply { layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) })
+        
+        syncRow.addView(hudButton("IMPORT CODE") {
+            val input = EditText(this)
+            AlertDialog.Builder(this).setTitle("PASTE SYNC CODE").setView(input)
+                .setPositiveButton("IMPORT") { _, _ ->
+                    if (Store.importAll(this, input.text.toString())) {
+                        Toast.makeText(this, "[SYSTEM] DATA SYNCED SUCCESSFULLY.", Toast.LENGTH_SHORT).show()
+                        buildSystemHUD()
+                    } else Toast.makeText(this, "[SYSTEM] INVALID SYNC CODE.", Toast.LENGTH_SHORT).show()
+                }.setNegativeButton("CANCEL", null).show()
+        }.apply { layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) })
+        panel.addView(syncRow)
+    }
+
+    private fun renderQuestsTab(panel: LinearLayout) {
+        panel.addView(tv("DAILY MISSIONS", 13f, Color.WHITE))
+        panel.addView(tv("Evidence required for task verification.", 10f, Color.GRAY))
+        panel.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)).apply { setMargins(0, dp(4), 0, dp(8)) }; setBackgroundColor(Color.parseColor("#334155")) })
+
+        Store.quests(this).forEach { q ->
+            val done = Store.questDone(this, q)
+            val qRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            val cb = CheckBox(this).apply {
+                text = q; textSize = 11f
+                setTextColor(if (done) Color.GRAY else Color.parseColor("#9BE7FF"))
+                isChecked = done; isEnabled = !done
+                setOnClickListener {
+                    if (!done) {
+                        val input = EditText(this@MainActivity).apply { hint = "Proof / Reflection (3+ words)" }
+                        AlertDialog.Builder(this@MainActivity).setTitle("SUBMIT MISSION EVIDENCE").setView(input)
+                            .setPositiveButton("CLAIM") { _, _ ->
+                                val res = Store.doQuest(this@MainActivity, q, input.text.toString())
+                                Toast.makeText(this@MainActivity, res, Toast.LENGTH_SHORT).show()
+                                buildSystemHUD()
+                            }.setNegativeButton("CANCEL") { _, _ -> isChecked = false }.show()
+                    }
+                }
+            }
+            qRow.addView(cb, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            panel.addView(qRow)
+        }
+    }
+
+    private fun renderGatesTab(panel: LinearLayout) {
+        panel.addView(tv("DUNGEON FOCUS GATES", 13f, Color.WHITE))
+        panel.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)).apply { setMargins(0, dp(4), 0, dp(8)) }; setBackgroundColor(Color.parseColor("#334155")) })
+
+        val gOn = Store.gateOn(this)
+        val ready = Store.gateReady(this)
+
+        panel.addView(hudButton("ENTER GATE (${Store.gateMin(this)} MIN)", !gOn && !ready) {
+            Store.enterGate(this, "Mathematics", Store.gateMin(this), false)
+            buildSystemHUD()
+        })
+        panel.addView(Space(this, null).apply { minimumHeight = dp(6) })
+        panel.addView(hudButton("CLAIM GATE REWARD", ready) {
+            val input = EditText(this).apply { hint = "Summary of work completed" }
+            AlertDialog.Builder(this).setTitle("CLAIM GATE REWARD").setView(input)
+                .setPositiveButton("SUBMIT") { _, _ ->
+                    val res = Store.completeGate(this, input.text.toString())
+                    Toast.makeText(this, res, Toast.LENGTH_SHORT).show()
+                    buildSystemHUD()
+                }.setNegativeButton("CANCEL", null).show()
+        })
+        panel.addView(Space(this, null).apply { minimumHeight = dp(6) })
+        panel.addView(hudButton("ABANDON GATE", gOn) {
+            val res = Store.abandonGate(this)
+            Toast.makeText(this, res, Toast.LENGTH_SHORT).show()
+            buildSystemHUD()
+        })
+        panel.addView(Space(this, null).apply { minimumHeight = dp(12) })
+        panel.addView(hudButton("USE TOKEN (${Store.PASS_MIN} MIN PASS)") {
+            Toast.makeText(this, Store.useToken(this), Toast.LENGTH_SHORT).show()
+            buildSystemHUD()
+        })
+    }
+
+    private fun renderInventoryTab(panel: LinearLayout) {
+        panel.addView(tv("APPLICATION INVENTORY", 13f, Color.WHITE))
+        panel.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)).apply { setMargins(0, dp(4), 0, dp(8)) }; setBackgroundColor(Color.parseColor("#334155")) })
+
+        val search = EditText(this).apply {
+            hint = "Search inventory..."
+            setTextColor(Color.WHITE); setHintTextColor(Color.GRAY); textSize = 11f
+            background = makeBoxDrawable("#334155", "#0F172A")
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+
+        val listLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val apps = packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+            .map { Pair(it.loadLabel(packageManager).toString(), it.activityInfo.packageName) }.sortedBy { it.first.lowercase() }
+
+        fun updateList(query: String) {
+            listLayout.removeAllViews()
+            apps.filter { it.first.contains(query, true) && it.second != packageName }.forEach { (name, pkg) ->
+                val ent = Store.isHazard(this, pkg)
+                val item = tv((if (ent) "☠ [HAZARD] " else "⚡ ") + name, 12f, if (ent) Color.parseColor("#F43F5E") else Color.parseColor("#00E5FF")).apply {
+                    setPadding(0, dp(6), 0, dp(6))
+                    setOnClickListener { launchApp(name, pkg) }
+                    setOnLongClickListener {
+                        Store.toggleHazard(this@MainActivity, pkg)
+                        Toast.makeText(this@MainActivity, "[SYSTEM] TOGGLED HAZARD FOR $name", Toast.LENGTH_SHORT).show()
+                        updateList(search.text.toString())
+                        true
+                    }
+                }
+                listLayout.addView(item)
+            }
+        }
+
+        updateList("")
+        search.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) { updateList(s.toString()) }
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
+
+        panel.addView(search)
+        panel.addView(Space(this, null).apply { minimumHeight = dp(6) })
+        panel.addView(listLayout)
+    }
+
+    private fun renderLunaTab(panel: LinearLayout) {
+        panel.addView(tv("LUNA AI ASSISTANT", 13f, Color.WHITE))
+        panel.addView(tv(Luna.next(this), 10f, Color.parseColor("#38BDF8")))
+        panel.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)).apply { setMargins(0, dp(4), 0, dp(8)) }; setBackgroundColor(Color.parseColor("#334155")) })
+
+        val input = EditText(this).apply {
+            hint = "Enter system command..."
+            setTextColor(Color.WHITE); setHintTextColor(Color.GRAY); textSize = 11f
+            background = makeBoxDrawable("#334155", "#0F172A")
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+
+        panel.addView(input)
+        panel.addView(Space(this, null).apply { minimumHeight = dp(6) })
+        panel.addView(hudButton("EXECUTE COMMAND") {
+            val res = Luna.ask(this, input.text.toString())
+            Toast.makeText(this, res, Toast.LENGTH_SHORT).show()
+            Luna.openPkg?.let { pkg -> launchApp(pkg, pkg) }
+            buildSystemHUD()
+        })
+    }
+
+    private fun launchVoice() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "LUNA LISTENING...")
+        }
+        try { startActivityForResult(intent, 999) } catch (e: Exception) { Toast.makeText(this, "[LUNA] SPEECH OFFLINE.", Toast.LENGTH_SHORT).show() }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 999 && resultCode == RESULT_OK && data != null) {
+            val matches = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            if (!matches.isNullOrEmpty()) {
+                val res = Luna.ask(this, matches[0])
+                Toast.makeText(this, res, Toast.LENGTH_SHORT).show()
+                Luna.openPkg?.let { pkg -> launchApp(pkg, pkg) }
+                buildSystemHUD()
+            }
+        }
+    }
+
+    private fun launchApp(name: String, pkg: String) {
+        if (Store.blocked(this, pkg)) {
+            startActivity(Intent(this, BlockActivity::class.java).putExtra("pkg", name))
+            return
+        }
+        packageManager.getLaunchIntentForPackage(pkg)?.let { startActivity(it) }
+    }
+}
+
+=====FILE: app/src/main/java/com/sovereign/solo/RankWidget.kt
+package com.sovereign.solo
+
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.widget.RemoteViews
+
+class RankWidget : AppWidgetProvider() {
+    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        for (id in appWidgetIds) {
+            val views = RemoteViews(context.packageName, R.layout.widget)
+            val lv = Store.level(Store.xp(context))
+            views.setTextViewText(R.id.w_head, "[!] STATUS Matrix")
+            views.setTextViewText(R.id.w_rank, "LEVEL $lv (${Store.rank(lv)}-RANK)")
+            views.setTextViewText(R.id.w_job, "JOB: ${Store.job(context)} | ${Store.title(context)}")
+            views.setTextViewText(R.id.w_goal, Store.goalLine(context))
+
+            val pi = PendingIntent.getActivity(
+                context, 0, Intent(context, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.w_head, pi)
+            appWidgetManager.updateAppWidget(id, views)
+        }
+    }
+
+    companion object {
+        fun update(context: Context) {
+            val intent = Intent(context, RankWidget::class.java).apply {
+                action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+            }
+            val ids = AppWidgetManager.getInstance(context).getAppWidgetIds(
+                ComponentName(context, RankWidget::class.java)
+            )
+            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+            context.sendBroadcast(intent)
+        }
+    }
+}
+
+=====FILE: app/src/main/java/com/sovereign/solo/AlarmReceiver.kt
+package com.sovereign.solo
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+
+class AlarmReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent?) {
+        Store.settle(context)
+        RankWidget.update(context)
+    }
+}
+
